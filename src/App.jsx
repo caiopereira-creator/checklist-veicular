@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 function Button({ children, className = "", variant = "default", ...props }) {
   const base = "rounded-xl px-4 py-2 text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed";
@@ -451,20 +452,49 @@ export default function VehicleChecklistApp() {
     try { setConnectionStatus(await testSupabaseConnection()); } catch (error) { setConnectionStatus(`Erro no teste: ${getErrorMessage(error)}`); }
   };
 
-  return (
+  const renderDriverPage = () => (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <Header accessMode={accessMode} setAccessMode={setAccessMode} view={view} setView={setView} openAlerts={openAlerts.length} onTest={checkConnection} onReload={loadData} loadingData={loadingData} />
+      <Header accessMode="driver" view="form" setView={setView} openAlerts={0} onTest={checkConnection} onReload={loadData} loadingData={loadingData} />
+      <main className="mx-auto max-w-6xl px-4 py-6 print:max-w-none print:p-0">
+        {loadingData && <StatusBox tone="blue" title="Carregando dados" text="Buscando checklists salvos no Supabase..." />}
+        {lastError && <StatusBox tone="red" title="Último erro do Supabase" text={lastError} />}
+        {lastWarning && <StatusBox tone="orange" title="Aviso de Storage" text={lastWarning} />}
+        <DriverAccessNotice />
+        <ChecklistFormView {...{ step, totalSteps, currentSection, form, status, reprovedItems, updateForm, updateItem, setStep, goNext, saveChecklist, saving, items }} />
+      </main>
+    </div>
+  );
+
+  const renderAdminPage = () => (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <Header accessMode="admin" view={view} setView={setView} openAlerts={openAlerts.length} onTest={checkConnection} onReload={loadData} loadingData={loadingData} />
       <main className="mx-auto max-w-6xl px-4 py-6 print:max-w-none print:p-0">
         {loadingData && <StatusBox tone="blue" title="Carregando dados" text="Buscando checklists salvos no Supabase..." />}
         {connectionStatus && <StatusBox tone="blue" title="Diagnóstico Supabase" text={connectionStatus} />}
         {lastError && <StatusBox tone="red" title="Último erro do Supabase" text={lastError} />}
         {lastWarning && <StatusBox tone="orange" title="Aviso de Storage" text={lastWarning} />}
-        {accessMode === "driver" ? (
-          <><DriverAccessNotice /><ChecklistFormView {...{ step, totalSteps, currentSection, form, status, reprovedItems, updateForm, updateItem, setStep, goNext, saveChecklist, saving, items }} /></>
-        ) : view === "dashboard" ? (
-          <Dashboard savedChecklists={filteredChecklists} rawCount={savedChecklists.length} damageCount={openAlerts.length} search={search} setSearch={setSearch} onNew={() => setView("form")} onOpenDamages={() => setView("driverDamages")} onOpenChecklist={(checklist) => { setSelectedChecklist(checklist); setView("checklistDetail"); }} />
+
+        {view === "dashboard" ? (
+          <Dashboard
+            savedChecklists={filteredChecklists}
+            rawCount={savedChecklists.length}
+            damageCount={openAlerts.length}
+            search={search}
+            setSearch={setSearch}
+            onNew={() => setView("form")}
+            onOpenDamages={() => setView("driverDamages")}
+            onOpenChecklist={(checklist) => {
+              setSelectedChecklist(checklist);
+              setView("checklistDetail");
+            }}
+          />
         ) : view === "driverDamages" ? (
-          <DriverDamages alerts={driverDamageAlerts} onResolve={(id) => setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "resolved", resolvedAt: new Date().toISOString() } : item))} onReopen={(id) => setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "open", resolvedAt: null } : item))} onNew={() => setView("form")} />
+          <DriverDamages
+            alerts={driverDamageAlerts}
+            onResolve={(id) => setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "resolved", resolvedAt: new Date().toISOString() } : item))}
+            onReopen={(id) => setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "open", resolvedAt: null } : item))}
+            onNew={() => setView("form")}
+          />
         ) : view === "checklistDetail" && selectedChecklist ? (
           <ChecklistDetail checklist={selectedChecklist} onBack={() => setView("dashboard")} />
         ) : (
@@ -473,20 +503,40 @@ export default function VehicleChecklistApp() {
       </main>
     </div>
   );
+
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/checklist-condutor" replace />} />
+      <Route path="/checklist-condutor" element={renderDriverPage()} />
+      <Route path="/admin" element={renderAdminPage()} />
+      <Route path="*" element={<Navigate to="/checklist-condutor" replace />} />
+    </Routes>
+  );
 }
 
-function Header({ accessMode, setAccessMode, view, setView, openAlerts, onTest, onReload, loadingData }) {
+function Header({ accessMode, view, setView, openAlerts, onTest, onReload, loadingData }) {
+  const isAdmin = accessMode === "admin";
+
   return (
     <header className="sticky top-0 z-40 border-b bg-white/90 backdrop-blur print:hidden">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
-        <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-xl text-white">✓</div><div><h1 className="text-lg font-bold">Checklist Veicular</h1><p className="text-xs text-slate-500">Controle com fotos, assinatura e PDF</p></div></div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onTest}>🧪 Testar Supabase</Button>
-          <Button variant="outline" onClick={onReload} disabled={loadingData}>{loadingData ? "Carregando..." : "🔄 Recarregar"}</Button>
-          <Button variant={accessMode === "driver" ? "default" : "outline"} onClick={() => { setAccessMode("driver"); setView("form"); }}>🔗 Link Condutor</Button>
-          <Button variant={accessMode === "admin" ? "default" : "outline"} onClick={() => { setAccessMode("admin"); setView("dashboard"); }}>🔐 Admin</Button>
-          {accessMode === "admin" && <><Button variant={view === "form" ? "default" : "outline"} onClick={() => setView("form")}>🚗 Novo</Button><Button variant={view === "dashboard" ? "default" : "outline"} onClick={() => setView("dashboard")}>📊 Painel</Button><Button variant={view === "driverDamages" ? "default" : "outline"} onClick={() => setView("driverDamages")}>🔴 Danos {openAlerts ? `(${openAlerts})` : ""}</Button></>}
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-xl text-white">✓</div>
+          <div>
+            <h1 className="text-lg font-bold">Checklist Veicular</h1>
+            <p className="text-xs text-slate-500">{isAdmin ? "Painel administrativo" : "Acesso exclusivo do condutor"}</p>
+          </div>
         </div>
+
+        {isAdmin && (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={onTest}>🧪 Testar Supabase</Button>
+            <Button variant="outline" onClick={onReload} disabled={loadingData}>{loadingData ? "Carregando..." : "🔄 Recarregar"}</Button>
+            <Button variant={view === "form" ? "default" : "outline"} onClick={() => setView("form")}>🚗 Novo</Button>
+            <Button variant={view === "dashboard" ? "default" : "outline"} onClick={() => setView("dashboard")}>📊 Painel</Button>
+            <Button variant={view === "driverDamages" ? "default" : "outline"} onClick={() => setView("driverDamages")}>🔴 Danos {openAlerts ? `(${openAlerts})` : ""}</Button>
+          </div>
+        )}
       </div>
     </header>
   );

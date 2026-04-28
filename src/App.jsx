@@ -650,8 +650,97 @@ function SignaturePad({ value, onChange }) {
 }
 
 function Dashboard({ savedChecklists, rawCount, damageCount, search, setSearch, onNew, onOpenDamages, onOpenChecklist, onOpenHistory }) {
-  const approved = savedChecklists.filter((item) => item.status === "approved").length; const review = savedChecklists.filter((item) => item.status === "needs_review").length;
-  return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-4"><Metric title="Checklists" value={rawCount} /><Metric title="Aprovados" value={approved} tone="green" /><Metric title="Com reprovação" value={review} tone="orange" /><Metric title="Danos condutores" value={damageCount} tone="red" /></div>{damageCount > 0 && <button onClick={onOpenDamages} className="w-full rounded-3xl border border-red-200 bg-red-50 p-5 text-left shadow-sm"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-lg font-black text-red-800">🔴 Existem veículos com possível dano por condutor</p><p className="text-sm text-red-700">Clique para tratar as pendências.</p></div><span className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white">Abrir</span></div></button>}<div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-2xl font-bold">Painel de controle</h2><p className="text-sm text-slate-500">Registros carregados diretamente do Supabase.</p></div><Button onClick={onNew} className="bg-indigo-600 hover:bg-indigo-700">🚗 Novo checklist</Button></div><div className="mt-5 flex items-center gap-2 rounded-2xl border bg-slate-50 px-3 py-2"><span>🔎</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por placa, veículo ou motorista..." className="w-full bg-transparent py-2 text-sm outline-none" /></div><div className="mt-5 space-y-3">{savedChecklists.length === 0 ? <EmptyState /> : savedChecklists.map((item) => <ChecklistCard key={item.id} item={item} onOpenChecklist={onOpenChecklist} onOpenHistory={onOpenHistory} />)}</div></div></div>;
+  const approved = savedChecklists.filter((item) => item.status === "approved").length;
+  const review = savedChecklists.filter((item) => item.status === "needs_review").length;
+  const approvalRate = rawCount ? Math.round((approved / rawCount) * 100) : 0;
+
+  const topVehicles = Object.entries(
+    savedChecklists.reduce((acc, item) => {
+      if (item.status === "needs_review") {
+        const plate = item.form.licensePlate || "Sem placa";
+        acc[plate] = (acc[plate] || 0) + 1;
+      }
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const topDrivers = Object.entries(
+    savedChecklists.reduce((acc, item) => {
+      if (item.status === "needs_review") {
+        const driver = item.form.driverName || "Não informado";
+        acc[driver] = (acc[driver] || 0) + 1;
+      }
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const topIssues = Object.entries(
+    savedChecklists.reduce((acc, item) => {
+      (item.reprovedItems || []).forEach((rep) => {
+        const label = rep.label || "Item não identificado";
+        acc[label] = (acc[label] || 0) + 1;
+      });
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-4"><Metric title="Checklists" value={rawCount} /><Metric title="Aprovados" value={approved} tone="green" /><Metric title="Com reprovação" value={review} tone="orange" /><Metric title="Danos condutores" value={damageCount} tone="red" /></div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-5 shadow-sm">
+          <CardContent className="p-0">
+            <h3 className="text-lg font-black text-slate-900">Taxa de aprovação</h3>
+            <p className="mt-1 text-sm text-slate-500">Percentual de checklists aprovados sem pendências</p>
+            <div className="mt-4 flex items-end gap-3">
+              <span className="text-4xl font-black text-green-600">{approvalRate}%</span>
+              <span className="pb-1 text-sm text-slate-500">de aprovação geral</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="p-5 shadow-sm">
+          <CardContent className="p-0">
+            <h3 className="text-lg font-black text-slate-900">Itens mais reprovados</h3>
+            <div className="mt-4 space-y-2">
+              {topIssues.length ? topIssues.map(([label, total]) => (
+                <div key={label} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-700">{label}</span>
+                  <span className="font-bold text-orange-600">{total}</span>
+                </div>
+              )) : <p className="text-sm text-slate-500">Sem reprovações registradas.</p>}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-5 shadow-sm">
+          <CardContent className="p-0">
+            <h3 className="text-lg font-black text-slate-900">Veículos com mais ocorrências</h3>
+            <div className="mt-4 space-y-2">
+              {topVehicles.length ? topVehicles.map(([plate, total]) => (
+                <div key={plate} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-700">{plate}</span>
+                  <span className="font-bold text-red-600">{total}</span>
+                </div>
+              )) : <p className="text-sm text-slate-500">Sem ocorrências registradas.</p>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="p-5 shadow-sm">
+          <CardContent className="p-0">
+            <h3 className="text-lg font-black text-slate-900">Condutores com mais ocorrências</h3>
+            <div className="mt-4 space-y-2">
+              {topDrivers.length ? topDrivers.map(([driver, total]) => (
+                <div key={driver} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-700">{driver}</span>
+                  <span className="font-bold text-red-600">{total}</span>
+                </div>
+              )) : <p className="text-sm text-slate-500">Sem ocorrências registradas.</p>}
+            </div>
+          </CardContent>
+        </Card>
+      </div>{damageCount > 0 && <button onClick={onOpenDamages} className="w-full rounded-3xl border border-red-200 bg-red-50 p-5 text-left shadow-sm"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-lg font-black text-red-800">🔴 Existem veículos com possível dano por condutor</p><p className="text-sm text-red-700">Clique para tratar as pendências.</p></div><span className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white">Abrir</span></div></button>}<div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-2xl font-bold">Painel de controle</h2><p className="text-sm text-slate-500">Registros carregados diretamente do Supabase.</p></div><Button onClick={onNew} className="bg-indigo-600 hover:bg-indigo-700">🚗 Novo checklist</Button></div><div className="mt-5 flex items-center gap-2 rounded-2xl border bg-slate-50 px-3 py-2"><span>🔎</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por placa, veículo ou motorista..." className="w-full bg-transparent py-2 text-sm outline-none" /></div><div className="mt-5 space-y-3">{savedChecklists.length === 0 ? <EmptyState /> : savedChecklists.map((item) => <ChecklistCard key={item.id} item={item} onOpenChecklist={onOpenChecklist} onOpenHistory={onOpenHistory} />)}</div></div></div>;
 }
 
 function EmptyState() { return <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center"><div className="text-4xl">📷</div><p className="mt-3 font-semibold text-slate-700">Nenhum checklist salvo ainda.</p><p className="text-sm text-slate-500">Finalize um checklist para aparecer aqui.</p></div>; }

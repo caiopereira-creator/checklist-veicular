@@ -312,6 +312,17 @@ async function loadDamageAlertsFromSupabase() {
   return (data || []).map(mapDamageAlertFromRow);
 }
 
+async function updateDamageAlertStatusInSupabase(id, status) {
+  const resolvedAt = status === "resolved" ? new Date().toISOString() : null;
+  const { error } = await supabase
+    .from("driver_damage_alerts")
+    .update({ status, resolved_at: resolvedAt })
+    .eq("id", id);
+
+  if (error) throw new Error(`Falha ao atualizar ocorrência: ${getErrorMessage(error)}`);
+  return resolvedAt;
+}
+
 function runLogicTests() {
   const previous = { id: "1", createdAt: "2026-04-01T10:00:00.000Z", status: "approved", form: { licensePlate: "ABC-1234", vehicleModel: "Fiat Strada", driverName: "João" }, reprovedItems: [] };
   const current = { id: "2", createdAt: "2026-04-02T10:00:00.000Z", status: "needs_review", form: { licensePlate: "ABC1234", vehicleModel: "Fiat Strada", driverName: "Pedro" }, reprovedItems: [{ key: "general__0", label: "Parabrisa", photos: [{}] }] };
@@ -452,6 +463,34 @@ export default function VehicleChecklistApp() {
     try { setConnectionStatus(await testSupabaseConnection()); } catch (error) { setConnectionStatus(`Erro no teste: ${getErrorMessage(error)}`); }
   };
 
+  const resolveDamageAlert = async (id) => {
+    try {
+      setLastError("");
+      const resolvedAt = await updateDamageAlertStatusInSupabase(id, "resolved");
+      setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "resolved", resolvedAt } : item));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setLastError(message);
+      alert(`Erro ao tratar ocorrência:
+
+${message}`);
+    }
+  };
+
+  const reopenDamageAlert = async (id) => {
+    try {
+      setLastError("");
+      await updateDamageAlertStatusInSupabase(id, "open");
+      setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "open", resolvedAt: null } : item));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setLastError(message);
+      alert(`Erro ao reabrir ocorrência:
+
+${message}`);
+    }
+  };
+
   const renderDriverPage = () => (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <Header accessMode="driver" view="form" setView={setView} openAlerts={0} onTest={checkConnection} onReload={loadData} loadingData={loadingData} />
@@ -491,8 +530,8 @@ export default function VehicleChecklistApp() {
         ) : view === "driverDamages" ? (
           <DriverDamages
             alerts={driverDamageAlerts}
-            onResolve={(id) => setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "resolved", resolvedAt: new Date().toISOString() } : item))}
-            onReopen={(id) => setDriverDamageAlerts((prev) => prev.map((item) => item.id === id ? { ...item, status: "open", resolvedAt: null } : item))}
+            onResolve={resolveDamageAlert}
+            onReopen={reopenDamageAlert}
             onNew={() => setView("form")}
           />
         ) : view === "checklistDetail" && selectedChecklist ? (

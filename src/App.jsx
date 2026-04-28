@@ -347,6 +347,7 @@ export default function VehicleChecklistApp() {
   const [driverDamageAlerts, setDriverDamageAlerts] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedChecklist, setSelectedChecklist] = useState(null);
+  const [selectedPlate, setSelectedPlate] = useState(null);
   const [saving, setSaving] = useState(false);
   const [lastError, setLastError] = useState("");
   const [lastWarning, setLastWarning] = useState("");
@@ -526,6 +527,20 @@ ${message}`);
               setSelectedChecklist(checklist);
               setView("checklistDetail");
             }}
+            onOpenHistory={(plate) => {
+              setSelectedPlate(plate);
+              setView("vehicleHistory");
+            }}
+          />
+        ) : view === "vehicleHistory" && selectedPlate ? (
+          <VehicleHistory
+            plate={selectedPlate}
+            checklists={savedChecklists}
+            onBack={() => setView("dashboard")}
+            onOpenChecklist={(checklist) => {
+              setSelectedChecklist(checklist);
+              setView("checklistDetail");
+            }}
           />
         ) : view === "driverDamages" ? (
           <DriverDamages
@@ -634,17 +649,199 @@ function SignaturePad({ value, onChange }) {
   return <div className="space-y-3"><div className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50"><canvas ref={canvasRef} width={760} height={220} className="h-56 w-full touch-none bg-white" onMouseDown={start} onMouseMove={draw} onMouseUp={stop} onMouseLeave={stop} onTouchStart={start} onTouchMove={draw} onTouchEnd={stop} /></div><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><p className={`text-xs font-semibold ${value ? "text-green-700" : "text-red-600"}`}>{value ? "Assinatura capturada com sucesso." : "Assinatura pendente."}</p><Button type="button" variant="outline" onClick={clear}>Limpar assinatura</Button></div></div>;
 }
 
-function Dashboard({ savedChecklists, rawCount, damageCount, search, setSearch, onNew, onOpenDamages, onOpenChecklist }) {
+function Dashboard({ savedChecklists, rawCount, damageCount, search, setSearch, onNew, onOpenDamages, onOpenChecklist, onOpenHistory }) {
   const approved = savedChecklists.filter((item) => item.status === "approved").length; const review = savedChecklists.filter((item) => item.status === "needs_review").length;
-  return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-4"><Metric title="Checklists" value={rawCount} /><Metric title="Aprovados" value={approved} tone="green" /><Metric title="Com reprovação" value={review} tone="orange" /><Metric title="Danos condutores" value={damageCount} tone="red" /></div>{damageCount > 0 && <button onClick={onOpenDamages} className="w-full rounded-3xl border border-red-200 bg-red-50 p-5 text-left shadow-sm"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-lg font-black text-red-800">🔴 Existem veículos com possível dano por condutor</p><p className="text-sm text-red-700">Clique para tratar as pendências.</p></div><span className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white">Abrir</span></div></button>}<div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-2xl font-bold">Painel de controle</h2><p className="text-sm text-slate-500">Registros carregados diretamente do Supabase.</p></div><Button onClick={onNew} className="bg-indigo-600 hover:bg-indigo-700">🚗 Novo checklist</Button></div><div className="mt-5 flex items-center gap-2 rounded-2xl border bg-slate-50 px-3 py-2"><span>🔎</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por placa, veículo ou motorista..." className="w-full bg-transparent py-2 text-sm outline-none" /></div><div className="mt-5 space-y-3">{savedChecklists.length === 0 ? <EmptyState /> : savedChecklists.map((item) => <ChecklistCard key={item.id} item={item} onOpenChecklist={onOpenChecklist} />)}</div></div></div>;
+  return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-4"><Metric title="Checklists" value={rawCount} /><Metric title="Aprovados" value={approved} tone="green" /><Metric title="Com reprovação" value={review} tone="orange" /><Metric title="Danos condutores" value={damageCount} tone="red" /></div>{damageCount > 0 && <button onClick={onOpenDamages} className="w-full rounded-3xl border border-red-200 bg-red-50 p-5 text-left shadow-sm"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-lg font-black text-red-800">🔴 Existem veículos com possível dano por condutor</p><p className="text-sm text-red-700">Clique para tratar as pendências.</p></div><span className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white">Abrir</span></div></button>}<div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-2xl font-bold">Painel de controle</h2><p className="text-sm text-slate-500">Registros carregados diretamente do Supabase.</p></div><Button onClick={onNew} className="bg-indigo-600 hover:bg-indigo-700">🚗 Novo checklist</Button></div><div className="mt-5 flex items-center gap-2 rounded-2xl border bg-slate-50 px-3 py-2"><span>🔎</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por placa, veículo ou motorista..." className="w-full bg-transparent py-2 text-sm outline-none" /></div><div className="mt-5 space-y-3">{savedChecklists.length === 0 ? <EmptyState /> : savedChecklists.map((item) => <ChecklistCard key={item.id} item={item} onOpenChecklist={onOpenChecklist} onOpenHistory={onOpenHistory} />)}</div></div></div>;
 }
 
 function EmptyState() { return <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center"><div className="text-4xl">📷</div><p className="mt-3 font-semibold text-slate-700">Nenhum checklist salvo ainda.</p><p className="text-sm text-slate-500">Finalize um checklist para aparecer aqui.</p></div>; }
-function ChecklistCard({ item, onOpenChecklist }) { return <div className="rounded-2xl border bg-white p-4 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold">{item.form.licensePlate}</h3><span className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === "approved" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>{item.status === "approved" ? "Aprovado" : "Revisão necessária"}</span></div><p className="text-sm text-slate-500">{item.form.vehicleModel} • {item.form.driverName} • KM {item.form.odometer}</p><p className="mt-1 text-xs text-slate-400">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>{item.form.driverSignature && <img src={item.form.driverSignature} alt="Assinatura" className="mt-2 h-16 max-w-xs rounded-lg border bg-white object-contain" />}</div><Button variant="outline" onClick={() => onOpenChecklist(item)}>👁️ Abrir checklist</Button></div>{item.reprovedItems.length > 0 && <div className="mt-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-800"><strong>{item.reprovedItems.length}</strong> item(ns) reprovado(s): {item.reprovedItems.map((rep) => rep.label).join(", ")}</div>}</div>; }
+function ChecklistCard({ item, onOpenChecklist, onOpenHistory }) {
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-bold">{item.form.licensePlate}</h3>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === "approved" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+              {item.status === "approved" ? "Aprovado" : "Revisão necessária"}
+            </span>
+          </div>
+          <p className="text-sm text-slate-500">{item.form.vehicleModel} • {item.form.driverName} • KM {item.form.odometer}</p>
+          <p className="mt-1 text-xs text-slate-400">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>
+          {item.form.driverSignature && <img src={item.form.driverSignature} alt="Assinatura" className="mt-2 h-16 max-w-xs rounded-lg border bg-white object-contain" />}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => onOpenHistory(item.form.licensePlate)}>📚 Histórico</Button>
+          <Button variant="outline" onClick={() => onOpenChecklist(item)}>👁️ Abrir checklist</Button>
+        </div>
+      </div>
+      {item.reprovedItems.length > 0 && (
+        <div className="mt-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-800">
+          <strong>{item.reprovedItems.length}</strong> item(ns) reprovado(s): {item.reprovedItems.map((rep) => rep.label).join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VehicleHistory({ plate, checklists, onBack, onOpenChecklist }) {
+  const normalizedPlate = normalizePlate(plate);
+  const vehicleChecklists = checklists
+    .filter((item) => normalizePlate(item.form.licensePlate) === normalizedPlate)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const total = vehicleChecklists.length;
+  const approved = vehicleChecklists.filter((item) => item.status === "approved").length;
+  const review = vehicleChecklists.filter((item) => item.status === "needs_review").length;
+  const totalReprovedItems = vehicleChecklists.reduce((sum, item) => sum + (item.reprovedItems?.length || 0), 0);
+  const latest = vehicleChecklists[0];
+  const drivers = [...new Set(vehicleChecklists.map((item) => item.form.driverName).filter(Boolean))];
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-3xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-slate-400">Histórico por placa</p>
+            <h2 className="mt-1 text-3xl font-black text-slate-950">{plate}</h2>
+            <p className="mt-1 text-sm text-slate-500">{latest?.form.vehicleModel || "Veículo não informado"}</p>
+          </div>
+          <Button variant="outline" onClick={onBack}>← Voltar ao painel</Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Metric title="Checklists" value={total} />
+        <Metric title="Aprovados" value={approved} tone="green" />
+        <Metric title="Com reprovação" value={review} tone="orange" />
+        <Metric title="Itens reprovados" value={totalReprovedItems} tone="red" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <InfoBox title="Último registro" lines={[latest ? new Date(latest.createdAt).toLocaleString("pt-BR") : "Sem registro", latest ? `KM: ${latest.form.odometer}` : "", latest ? `Status: ${latest.status === "approved" ? "Aprovado" : "Revisão necessária"}` : ""]} />
+        <InfoBox title="Condutores registrados" lines={drivers.length ? drivers : ["Nenhum condutor encontrado"]} />
+      </div>
+
+      <div className="rounded-3xl border bg-white p-5 shadow-sm">
+        <h3 className="mb-4 text-xl font-black text-slate-900">Linha do tempo do veículo</h3>
+        <div className="space-y-4">
+          {vehicleChecklists.map((item, index) => (
+            <div key={item.id} className="rounded-2xl border bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">#{total - index}</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === "approved" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                      {item.status === "approved" ? "Aprovado" : "Revisão necessária"}
+                    </span>
+                  </div>
+                  <p className="mt-2 font-bold text-slate-800">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>
+                  <p className="text-sm text-slate-500">Condutor: {item.form.driverName || "Não informado"} • KM {item.form.odometer || "-"}</p>
+                  <p className="text-sm text-slate-500">Motivo: {item.form.inspectionReason || "rotina"}</p>
+                </div>
+                <Button variant="outline" onClick={() => onOpenChecklist(item)}>👁️ Abrir</Button>
+              </div>
+
+              {item.reprovedItems?.length > 0 && (
+                <div className="mt-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-800">
+                  <strong>{item.reprovedItems.length}</strong> item(ns) reprovado(s): {item.reprovedItems.map((rep) => rep.label).join(", ")}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ChecklistDetail({ checklist, onBack }) {
-  const grouped = CHECKLIST_SECTIONS.map((section) => ({ ...section, sectionItems: section.items.map((label, index) => ({ key: `${section.id}__${index}`, label, data: checklist.items[`${section.id}__${index}`] || {} })) }));
-  return <div className="space-y-6"><div className="flex flex-col gap-3 rounded-3xl border bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between print:hidden"><div><h2 className="text-2xl font-black">Visualização do checklist</h2><p className="text-sm text-slate-500">Confira os dados completos e exporte em PDF.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={onBack}>← Voltar</Button><Button onClick={() => window.print()} className="bg-indigo-600 hover:bg-indigo-700">📄 Exportar PDF</Button></div></div><div className="rounded-3xl border bg-white p-6 shadow-sm print:border-0 print:shadow-none"><div className="border-b pb-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-3xl font-black">Checklist Veicular</h1><p className="mt-1 text-sm text-slate-500">Gerado em {new Date(checklist.createdAt).toLocaleString("pt-BR")}</p></div><span className={`w-fit rounded-full px-4 py-2 text-sm font-bold ${checklist.status === "approved" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>{checklist.status === "approved" ? "Aprovado" : "Revisão necessária"}</span></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><InfoBox title="Veículo" lines={[checklist.form.vehicleModel, `Placa: ${checklist.form.licensePlate}`, `Renavam: ${checklist.form.renavam || "Não informado"}`, `KM: ${checklist.form.odometer}`]} /><InfoBox title="Condutor" lines={[checklist.form.driverName, `Telefone: ${checklist.form.driverPhone || "Não informado"}`, `CNH: ${checklist.form.driverCnh || "Não informado"}`, `Categoria: ${checklist.form.cnhCategory || "Não informado"}`]} /></div><div className="mt-5 rounded-2xl border bg-slate-50 p-4"><p className="text-sm font-bold text-slate-700">Motivo da inspeção</p><p className="mt-1 text-sm capitalize text-slate-600">{checklist.form.inspectionReason}</p></div>{checklist.form.damageReport && <div className="mt-5 rounded-2xl border bg-slate-50 p-4"><p className="text-sm font-bold text-slate-700">Observações gerais / Avarias</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{checklist.form.damageReport}</p></div>}<div className="mt-6 space-y-5">{grouped.map((section) => <SectionDetail key={section.id} section={section} />)}</div>{checklist.form.driverSignature && <div className="mt-6 rounded-2xl border p-4 print:break-inside-avoid"><p className="mb-2 text-sm font-bold text-slate-700">Assinatura do condutor</p><img src={checklist.form.driverSignature} alt="Assinatura" className="h-28 max-w-md rounded-xl bg-white object-contain" /></div>}</div></div>;
+  const grouped = CHECKLIST_SECTIONS.map((section) => ({
+    ...section,
+    sectionItems: section.items.map((label, index) => ({
+      key: `${section.id}__${index}`,
+      label,
+      data: checklist.items[`${section.id}__${index}`] || {},
+    })),
+  }));
+
+  const checklistNumber = String(checklist.id || "").slice(0, 8).toUpperCase();
+  const statusLabel = checklist.status === "approved" ? "Aprovado" : "Revisão necessária";
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 rounded-3xl border bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between print:hidden">
+        <div>
+          <h2 className="text-2xl font-black">Visualização do checklist</h2>
+          <p className="text-sm text-slate-500">Confira os dados completos e exporte em PDF.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={onBack}>← Voltar</Button>
+          <Button onClick={() => window.print()} className="bg-indigo-600 hover:bg-indigo-700">📄 Exportar PDF</Button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border bg-white p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 print:rounded-none print:border-b print:border-x-0 print:border-t-0">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <img src="/logo-sirtec.png" alt="Sirtec Sistemas Elétricos" className="h-16 w-auto object-contain print:h-14" />
+              <div>
+                <h1 className="text-3xl font-black text-slate-950 print:text-2xl">Sirtec - Checklist Veicular</h1>
+                <p className="mt-1 text-sm font-semibold text-slate-500">Controle de entrega, devolução e inspeção de veículos</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-slate-50 p-4 text-sm print:bg-white">
+              <p><strong>Nº:</strong> {checklistNumber || "-"}</p>
+              <p><strong>Data:</strong> {new Date(checklist.createdAt).toLocaleString("pt-BR")}</p>
+              <p><strong>Status:</strong> {statusLabel}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-3 print:grid-cols-3">
+          <div className="rounded-2xl border bg-slate-950 p-5 text-white print:bg-white print:text-slate-950">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-300 print:text-slate-500">Placa</p>
+            <p className="mt-2 text-3xl font-black print:text-2xl">{checklist.form.licensePlate}</p>
+          </div>
+          <InfoBox title="Veículo" lines={[checklist.form.vehicleModel, `Renavam: ${checklist.form.renavam || "Não informado"}`, `KM: ${checklist.form.odometer}`]} />
+          <InfoBox title="Condutor" lines={[checklist.form.driverName, `Telefone: ${checklist.form.driverPhone || "Não informado"}`, `CNH: ${checklist.form.driverCnh || "Não informado"}`, `Categoria: ${checklist.form.cnhCategory || "Não informado"}`]} />
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 print:grid-cols-2">
+          <InfoBox title="Motivo da inspeção" lines={[checklist.form.inspectionReason || "rotina"]} />
+          <InfoBox title="Validade CNH" lines={[checklist.form.cnhExpiryDate || "Não informado"]} />
+        </div>
+
+        {checklist.form.damageReport && (
+          <div className="mt-5 rounded-2xl border bg-slate-50 p-4 print:break-inside-avoid print:bg-white">
+            <p className="text-sm font-bold text-slate-700">Observações gerais / Avarias</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{checklist.form.damageReport}</p>
+          </div>
+        )}
+
+        <div className="mt-6 space-y-5">
+          {grouped.map((section) => <SectionDetail key={section.id} section={section} />)}
+        </div>
+
+        {checklist.form.driverSignature && (
+          <div className="mt-8 rounded-2xl border p-5 print:break-inside-avoid">
+            <p className="mb-3 text-sm font-bold text-slate-700">Assinatura do condutor</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <img src={checklist.form.driverSignature} alt="Assinatura" className="h-28 max-w-md rounded-xl bg-white object-contain" />
+              <div className="min-w-72 border-t pt-2 text-center text-sm text-slate-600">
+                {checklist.form.driverName || "Condutor"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-8 border-t pt-4 text-center text-xs text-slate-500 print:block">
+          Sirtec Sistemas Elétricos • Documento gerado automaticamente pelo sistema de checklist veicular.
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SectionDetail({ section }) { return <div className="rounded-2xl border p-4 print:break-inside-avoid"><h3 className="mb-3 text-lg font-black text-slate-800">{section.icon} {section.title}</h3><div className="space-y-2">{section.sectionItems.map(({ key, label, data }) => <ItemDetail key={key} label={label} data={data} />)}</div></div>; }

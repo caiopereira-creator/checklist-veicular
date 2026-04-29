@@ -92,6 +92,54 @@ function fileToPreview(file) {
   return { name: file.name, size: file.size, type: file.type, url: URL.createObjectURL(file), rawFile: file };
 }
 
+function compressImageFile(file, maxWidth = 1280, quality = 0.72) {
+  return new Promise((resolve) => {
+    if (!file || !file.type?.startsWith("image/")) {
+      resolve(file);
+      return;
+    }
+
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      const scale = Math.min(1, maxWidth / image.width);
+      const width = Math.round(image.width * scale);
+      const height = Math.round(image.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(objectUrl);
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressedFile = new File(
+            [blob],
+            file.name.replace(/\.[^.]+$/, "") + "-compressed.jpg",
+            { type: "image/jpeg", lastModified: Date.now() }
+          );
+          resolve(compressedFile.size < file.size ? compressedFile : file);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+
+    image.src = objectUrl;
+  });
+}
+
 function stripRawFile(photo) {
   return { name: photo?.name || "foto", size: photo?.size || 0, type: photo?.type || "image/jpeg", url: photo?.url || "" };
 }
@@ -159,9 +207,18 @@ async function uploadChecklistMedia(record) {
         uploadedPhotos.push(stripRawFile(photo));
         continue;
       }
-      const extension = photo.rawFile.name.split(".").pop() || "jpg";
-      const result = await uploadFileToSupabase(photo.rawFile, `${folder}/photos/${itemKey}-${index}.${extension}`);
-      if (result.url) uploadedPhotos.push({ name: photo.name, size: photo.size, type: photo.type, url: result.url });
+      const compressedFile = await compressImageFile(photo.rawFile);
+      const originalSize = photo.rawFile.size;
+      const extension = "jpg";
+      const result = await uploadFileToSupabase(compressedFile, `${folder}/photos/${itemKey}-${index}.${extension}`);
+      if (result.url) uploadedPhotos.push({
+        name: compressedFile.name,
+        size: compressedFile.size,
+        originalSize,
+        compressed: compressedFile.size < originalSize,
+        type: compressedFile.type,
+        url: result.url,
+      });
       else {
         warnings.push(`Foto ${itemKey}-${index}: ${result.error}`);
         uploadedPhotos.push(stripRawFile(photo));
